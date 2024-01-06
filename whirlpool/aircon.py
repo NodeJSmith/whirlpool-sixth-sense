@@ -1,6 +1,5 @@
 import logging
 from enum import Enum
-from typing import Callable
 
 import aiohttp
 
@@ -143,9 +142,7 @@ class Aircon(Appliance):
         return self.attr_value_to_bool(self.get_attribute(SETTING_HORZ_LOUVER_SWING))
 
     async def set_h_louver_swing(self, swing: bool):
-        await self.send_attributes(
-            {SETTING_HORZ_LOUVER_SWING: self.bool_to_attr_value(swing)}
-        )
+        await self.send_attributes({SETTING_HORZ_LOUVER_SWING: self.bool_to_attr_value(swing)})
 
     def get_turbo_mode(self):
         return self.attr_value_to_bool(self.get_attribute(SETTING_TURBO_MODE))
@@ -166,10 +163,7 @@ class Aircon(Appliance):
         await self.send_attributes({SETTING_QUIET_MODE: self.bool_to_attr_value(quiet)})
 
     def get_display_on(self):
-        return (
-            self.get_attribute(SETTING_DISPLAY_BRIGHTNESS)
-            == SETVAL_DISPLAY_BRIGHTNESS_ON
-        )
+        return self.get_attribute(SETTING_DISPLAY_BRIGHTNESS) == SETVAL_DISPLAY_BRIGHTNESS_ON
 
     async def set_display_on(self, on: bool):
         bri = SETVAL_DISPLAY_BRIGHTNESS_ON if on else SETVAL_DISPLAY_BRIGHTNESS_OFF

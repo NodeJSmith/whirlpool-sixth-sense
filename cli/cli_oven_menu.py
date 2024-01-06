@@ -1,5 +1,4 @@
 import aioconsole
-import aiohttp
 
 from whirlpool.oven import Cavity, CookMode, KitchenTimerState, Oven
 
@@ -132,7 +131,6 @@ async def show_oven_menu(backend_selector, auth, said, session):
             await ov.send_attributes({cmd: val})
         elif choice == "q":
             await ov.disconnect()
-            auth.cancel_auto_renewal()
             print("Bye")
             loop = False
         else:

@@ -1,5 +1,4 @@
 import aioconsole
-import aiohttp
 
 from whirlpool.aircon import Aircon, Mode
 
@@ -97,7 +96,6 @@ async def show_aircon_menu(backend_selector, auth, said, session):
             await ac.send_attributes({cmd: val})
         elif choice == "q":
             await ac.disconnect()
-            auth.cancel_auto_renewal()
             print("Bye")
             loop = False
         else:

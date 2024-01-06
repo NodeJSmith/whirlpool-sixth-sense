@@ -1,64 +1,32 @@
-import argparse
 import asyncio
 import logging
 
-import aioconsole
 import aiohttp
-
+from args import get_args
 from cli_ac_menu import show_aircon_menu
 from cli_oven_menu import show_oven_menu
 from cli_washerdryer_menu import show_washerdryer_menu
+
 from whirlpool.appliancesmanager import AppliancesManager
 from whirlpool.auth import Auth
-from whirlpool.backendselector import BackendSelector, Brand, Region
-from whirlpool.washerdryer import WasherDryer
+from whirlpool.backendselector import BackendSelector
 
-logging.basicConfig(format="%(asctime)s [%(name)s %(levelname)s]: %(message)s")
 logger = logging.getLogger("whirlpool")
-logger.setLevel(logging.DEBUG)
-
-logger = logging.getLogger("whirlpool.eventsocket")
-logger.setLevel(logging.INFO)
-
-parser = argparse.ArgumentParser()
-parser.add_argument("-e", "--email", help="Email address")
-parser.add_argument("-p", "--password", help="Password")
-parser.add_argument(
-    "-b", "--brand", help="Brand (whirlpool/maytag/kitchenaid)", default="whirlpool"
-)
-parser.add_argument("-r", "--region", help="Region (EU/US)", default="EU")
-parser.add_argument("-l", "--list", help="List appliances", action="store_true")
-parser.add_argument("-s", "--said", help="The appliance to load")
-args = parser.parse_args()
 
 
 async def start():
-    def attr_upd():
-        logger.info("Attributes updated")
+    args = get_args()
 
-    if args.brand == "whirlpool":
-        selected_brand = Brand.Whirlpool
-    elif args.brand == "maytag":
-        selected_brand = Brand.Maytag
-    elif args.brand == "kitchenaid":
-        selected_brand = Brand.KitchenAid
-    else:
-        logger.error("Invalid brand argument")
-        return
-
-    if args.region == "EU":
-        selected_region = Region.EU
-    elif args.region == "US":
-        selected_region = Region.US
-    else:
-        logger.error("Invalid region argument")
-        return
-
-    backend_selector = BackendSelector(selected_brand, selected_region)
+    backend_selector = BackendSelector(args.brand, args.region)
 
     async with aiohttp.ClientSession() as session:
         auth = Auth(backend_selector, args.email, args.password, session)
-        await auth.do_auth(store=False)
+
+        authorized = await auth.do_auth(store=False)
+        if not authorized:
+            logger.error("Could not authorize")
+            return
+
         appliance_manager = AppliancesManager(backend_selector, auth, session)
         if not await appliance_manager.fetch_appliances():
             logger.error("Could not fetch appliances")

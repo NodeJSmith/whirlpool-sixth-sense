@@ -1,7 +1,7 @@
-import asyncio
 import json
 import logging
 from datetime import datetime, timedelta
+from typing import Any
 
 import aiohttp
 import async_timeout
@@ -25,48 +25,16 @@ class Auth:
         self._backend_selector = backend_selector
         self._username = username
         self._password = password
-        self._auth_dict = {}
+        self._auth_dict: dict[str, Any] = {}
         self._session: aiohttp.ClientSession = session
-
-        self._renew_time: datetime = None
-        self._auto_renewal_task: asyncio.Task = None
-
-    async def _do_auto_renewal(self):
-        if self._renew_time > datetime.now():
-            time_to = (self._renew_time - datetime.now()).seconds
-            LOGGER.info("Renewing in %ds", time_to)
-            await asyncio.sleep(time_to)
-        await self.do_auth()
-
-    def _schedule_auto_renewal(self):
-        return  # disable for now and rely on on-demand renewal
-
-        if not self.is_access_token_valid():
-            LOGGER.warn("Access token is not valid, renewing now")
-            self._renew_time = datetime.now()
-        else:
-            expire_date = datetime.fromtimestamp(self._auth_dict.get("expire_date", 0))
-            self._renew_time = expire_date - AUTO_REFRESH_DELTA
-            LOGGER.info(
-                "Expire date is %s, renewing at %s", expire_date, self._renew_time
-            )
-
-        self.cancel_auto_renewal()
-        self._auto_renewal_task = asyncio.create_task(self._do_auto_renewal())
 
     def _save_auth_data(self):
         with open(AUTH_JSON_FILE, "w") as f:
             json.dump(self._auth_dict, f)
 
-    async def _do_auth(self, refresh_token: str) -> str | None:
+    async def _do_auth(self, refresh_token: str) -> dict[str, Any] | None:
         auth_url = f"{self._backend_selector.base_url}/oauth/token"
-        auth_header = {
-            "Content-Type": "application/x-www-form-urlencoded",
-            # "Brand": "Whirlpool",
-            # "WP-CLIENT-REGION": "EMEA",
-            # "WP-CLIENT-BRAND": "WHIRLPOOL",
-            # "WP-CLIENT-COUNTRY": "EN",
-        }
+        auth_header = {"Content-Type": "application/x-www-form-urlencoded"}
 
         auth_data = {
             "client_id": self._backend_selector.client_id,
@@ -92,9 +60,7 @@ class Auth:
             )
 
         async with async_timeout.timeout(30):
-            async with self._session.post(
-                auth_url, data=auth_data, headers=auth_header
-            ) as r:
+            async with self._session.post(auth_url, data=auth_data, headers=auth_header) as r:
                 LOGGER.debug("Auth status: " + str(r.status))
                 if r.status == 200:
                     return json.loads(await r.text())
@@ -103,9 +69,7 @@ class Auth:
                 return None
 
     async def do_auth(self, store: bool = False) -> bool:
-        fetched_auth_data = await self._do_auth(
-            self._auth_dict.get("refresh_token", None)
-        )
+        fetched_auth_data = await self._do_auth(self._auth_dict.get("refresh_token", None))
 
         if not fetched_auth_data:
             self._auth_dict = {}
@@ -122,7 +86,6 @@ class Auth:
         }
         if store:
             self._save_auth_data()
-        self._schedule_auto_renewal()
         return True
 
     async def load_auth_file(self):
@@ -133,24 +96,15 @@ class Auth:
         except FileNotFoundError:
             pass
 
-        if self.is_access_token_valid():
-            self._schedule_auto_renewal()
-        else:
+        if not self.is_access_token_valid():
             LOGGER.info("Access token expired. Renewing.")
             await self.do_auth()
 
     def is_access_token_valid(self):
-        return (
-            "access_token" in self._auth_dict
-            and self._auth_dict.get("expire_date", 0) > datetime.now().timestamp()
-        )
+        return "access_token" in self._auth_dict and self._auth_dict.get("expire_date", 0) > datetime.now().timestamp()
 
     def get_access_token(self):
         return self._auth_dict.get("access_token", None)
 
     def get_said_list(self):
         return self._auth_dict.get("SAID", None)
-
-    def cancel_auto_renewal(self):
-        if self._auto_renewal_task:
-            self._auto_renewal_task.cancel()
